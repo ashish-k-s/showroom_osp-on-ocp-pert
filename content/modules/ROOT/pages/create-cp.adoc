@@ -1,7 +1,20 @@
 = Create the OpenStack Control Plane
 
+== Overview 
+
 We will be using a preconfigured file (*files/osp-ng-ctlplane-deploy.yaml*) to create the control plane and at the same time enable the required services, configure the control plane network, and configure the service back ends.
-The bastion has a preconfigured NFS service that we will be using to store glance images and cinder volumes.
+
+Sample configuration files in the form of Validated Architectures (VAs) may be provided as Feature Pack after release of RHOSP18.
+These will be made available in the form of kustomize YAML files.
+
+Kustomize is a Kubernetes-native deployment tool that enables customization of YAML files without altering the original. 
+It simplifies resource configuration by allowing base templates to be customized with user data, eliminating the need to write manifests from scratch. 
+This abstraction streamlines resource management, enabling users to focus solely on relevant details without requiring full knowledge of Kubernetes YAML structures.
+
+The current onfiguration is derived from the upstream templates available here: 
+https://github.com/openstack-k8s-operators/openstack-operator/blob/dev-preview3/config/samples/
+
+In this deployment, the bastion has a preconfigured NFS service that we will be using to store glance images and cinder volumes.
 
 == Create an NFS share for cinder
 

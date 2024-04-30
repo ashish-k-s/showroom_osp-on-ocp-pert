@@ -26,6 +26,23 @@ For ease of instructions it will be assumed the repo has been cloned
 
 There are three operators that are required to be installed before you can install the OpenStack Operator, the https://access.redhat.com/documentation/en-us/openshift_container_platform/4.13/html/networking/kubernetes-nmstate#installing-the-kubernetes-nmstate-operator-cli[NMState  Operator^] the https://access.redhat.com/documentation/en-us/openshift_container_platform/4.13/html/networking/load-balancing-with-metallb#nw-metallb-installing-operator-cli_metallb-operator-install[MetalLB  Operator^]  and the https://docs.openshift.com/container-platform/4.14///security/cert_manager_operator/cert-manager-operator-install.html[Cert-Manager + Operator^]
 
+==== NMState Operator:
+
+The Openshift NMState Operator acts as a configuration engine for NetworkManager. 
+Nmstate simplifies network configuration tasks by providing a declarative API for managing network settings, allowing users to define network setups using YAML or JSON. 
+It supports physical servers deployed with OpenShift and virtualized environments, enabling the creation of bonds, bridges, VLAN interfaces, and more through encapsulated configurations. These configurations can be combined into single files for consistent setups across nodes. 
+We will be utilizing this operator for configuration of OpenStack network isolation on the nodes.
+
+==== MetalLB Oerator: 
+
+MetalLB is a load balancer solution for Kubernetes clusters. 
+In the current use case of OSP services deployment on OCP cluster, the MetalLB operator manages the deployment via CRDs, like IPAddressPool and L2Advertisement.
+This implementation of MetalLB operates in layer2 mode. It requires IP address pools for load balancer services, configurable via IPAddressPool CR. L2Advertisement CR facilitates IP advertisement from specified pools, ensuring efficient IP allocation to services and namespaces.
+
+==== Cert-manager Oerator: 
+
+FIXME
+
 ==== Accessing the Cluster
 
 From the hypervisor, log in to the bastion
@@ -80,6 +97,18 @@ spec:
 EOF
 ----
 
+Verify the namespace is created:
+[source,bash,role=execute]
+----
+oc get ns openshift-nmstate  -o custom-columns=Name:.metadata.name,Status:.status.phase
+----
+
+.Sample Output
+----
+Name                Status
+openshift-nmstate   Active
+----
+
 Create the *OperatorGroup*:
 
 [source,bash,role=execute]
@@ -103,6 +132,12 @@ Confirm the OperatorGroup is installed in the namespace:
 [source,bash,role=execute]
 ----
 oc get operatorgroup -n openshift-nmstate
+----
+
+.Sample Output
+----
+NAME                AGE
+openshift-nmstate   5s
 ----
 
 Subscribe to the *nmstate* Operator:
@@ -152,12 +187,17 @@ metadata:
 EOF
 ----
 
-Confirm that the deployment for the *nmstate* operator is running:
+Confirm that the instance for the *nmstate* operator is created:
 
 [source,bash,role=execute]
 ----
-oc get clusterserviceversion -n openshift-nmstate \
- -o custom-columns=Name:.metadata.name,Phase:.status.phase
+oc get nmstates
+----
+
+.Sample Output
+----
+NAME      AGE
+nmstate   2s
 ----
 
 ==== MetalLB Operator
@@ -172,6 +212,18 @@ kind: Namespace
 metadata:
   name: metallb-system
 EOF
+----
+
+Verify the namespace is created:
+[source,bash,role=execute]
+----
+oc get ns metallb-system  -o custom-columns=Name:.metadata.name,Status:.status.phase
+----
+
+.Sample Output
+----
+Name             Status
+metallb-system   Active
 ----
 
 Create the *OperatorGroup*:
@@ -192,6 +244,12 @@ Confirm the OperatorGroup is installed in the namespace:
 [source,bash,role=execute]
 ----
 oc get operatorgroup -n metallb-system
+----
+
+.Sample Output
+----
+NAME               AGE
+metallb-operator   5s
 ----
 
 Subscribe to the *metallb* Operator:
@@ -229,6 +287,12 @@ oc get clusterserviceversion -n metallb-system \
 
 Repeat the query until the Phase is Succeeded.
 
+.Sample Output
+----
+Name                                    Phase
+metallb-operator.v4.13.0-202404030309   Succeeded
+----
+
 Create a single instance of a *metallb* resource:
 
 [source,bash,role=execute]
@@ -251,11 +315,24 @@ oc get deployment -n metallb-system controller
 
 Repeat the command until AVAILABLE is 1
 
+.Sample Output
+----
+NAME         READY   UP-TO-DATE   AVAILABLE   AGE
+controller   1/1     1            1           21s
+----
+
 Verify that the daemon set for the speaker is running:
 
 [source,bash,role=execute]
 ----
 oc get daemonset -n metallb-system speaker
+----
+
+.Sample Output
+----
+oc get daemonset -n metallb-system speaker
+NAME      DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+speaker   6         6         6       6            6           kubernetes.io/os=linux   55s
 ----
 
 ==== Cert-Manager Operator
@@ -328,12 +405,24 @@ Confirm the *cert-manager* installplan is in the namespace:
 oc get installplan -n cert-manager-operator
 ----
 
+.Sample Output
+----
+NAME            CSV                             APPROVAL    APPROVED
+install-sw9rh   cert-manager-operator.v1.12.1   Automatic   true
+----
+
 Confirm the *cert-manager* operator is installed:
 
 [source,bash,role=execute]
 ----
 oc get clusterserviceversion -n cert-manager-operator \
  -o custom-columns=Name:.metadata.name,Phase:.status.phase
+----
+
+.Sample Output
+----
+Name                                    Phase
+cert-manager-operator.v1.12.1           Succeeded
 ----
 
 Verify that cert-manager pods are up and running by entering the following command:
@@ -348,6 +437,7 @@ Repeat command until all pods are showing READY 1/1
 .Sample Output
 ----
 NAME                                      READY   STATUS    RESTARTS   AGE
-cert-manager-cainjector-5df47878b-knmwg   1/1     Running   0          19s
-cert-manager-webhook-66c75fcddf-8kldt     1/1     Running   0          23s
+cert-manager-68744bfbf4-pgx8h             1/1     Running   0          102s
+cert-manager-cainjector-5df47878b-zn6kk   1/1     Running   0          2m19s
+cert-manager-webhook-66c75fcddf-z66qg     1/1     Running   0          2m21s
 ----
